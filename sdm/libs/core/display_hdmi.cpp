@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2014 - 2018, The Linux Foundation. All rights reserved.
+* Copyright (c) 2014 - 2018, 2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted
 * provided that the following conditions are met:
@@ -36,6 +36,14 @@
 
 namespace sdm {
 
+static bool IsFormatOnlyYUV(HWDisplayAttributes attrib) {
+  if (attrib.pixel_formats > DisplayInterfaceFormat::kFormatNone &&
+      !(DisplayInterfaceFormat::kFormatRGB & attrib.pixel_formats)) {
+    return true;
+  }
+  return false;
+}
+
 DisplayHDMI::DisplayHDMI(DisplayEventHandler *event_handler, HWInfoInterface *hw_info_intf,
                          BufferSyncHandler *buffer_sync_handler, BufferAllocator *buffer_allocator,
                          CompManager *comp_manager)
@@ -62,14 +70,25 @@ DisplayError DisplayHDMI::Init() {
 
   hw_intf_->GetDisplayId(&display_id_);
 
-  uint32_t active_mode_index;
-  char value[64] = "0";
-  Debug::GetProperty(HDMI_S3D_MODE_PROP, value);
-  HWS3DMode mode = (HWS3DMode)atoi(value);
-  if (mode > kS3DModeNone && mode < kS3DModeMax) {
-    active_mode_index = GetBestConfig(mode);
+  uint32_t active_mode_index = 0;
+  std::ifstream res_file;
+  DisplayInterfaceFormat pref_format = kFormatNone;
+
+  res_file.open("/vendor/resolutions.txt");
+  if (res_file) {
+    DLOGI("Getting best resolution from file");
+    active_mode_index = GetBestConfigFromFile(res_file, &pref_format);
+    res_file.close();
   } else {
-    active_mode_index = GetBestConfig(kS3DModeNone);
+    char value[64] = "0";
+    DLOGI("Computing best resolution");
+    Debug::GetProperty(HDMI_S3D_MODE_PROP, value);
+    HWS3DMode mode = (HWS3DMode)atoi(value);
+    if (mode > kS3DModeNone && mode < kS3DModeMax) {
+      active_mode_index = GetBestConfig(mode);
+    } else {
+      active_mode_index = GetBestConfig(kS3DModeNone);
+    }
   }
 
   error = hw_intf_->SetDisplayAttributes(active_mode_index);
@@ -79,6 +98,14 @@ DisplayError DisplayHDMI::Init() {
   }
 
   error = DisplayBase::Init();
+  if (error != kErrorNone) {
+    HWInterface::Destroy(hw_intf_);
+    return error;
+  }
+
+  // If pref_format has some valid value other than kFormatNone, it
+  // means GetBestConfigFromFile is used for best resolution selection.
+  error = SetBestColorFormat(active_mode_index, pref_format);
   if (error != kErrorNone) {
     HWInterface::Destroy(hw_intf_);
     return error;
@@ -177,6 +204,120 @@ DisplayError DisplayHDMI::OnMinHdcpEncryptionLevelChange(uint32_t min_enc_level)
   return hw_intf_->OnMinHdcpEncryptionLevelChange(min_enc_level);
 }
 
+uint32_t DisplayHDMI::GetBestConfigFromFile(std::ifstream &res_file, DisplayInterfaceFormat *format) {
+  string line;
+  uint32_t num_modes = 0;
+  uint32_t index = 0;
+  std::map<std::string, DisplayInterfaceFormat> intf_format_to_str;
+  intf_format_to_str[std::string("rgb")] = DisplayInterfaceFormat::kFormatRGB;
+  intf_format_to_str[std::string("yuv422")] = DisplayInterfaceFormat::kFormatYCbCr422;
+  intf_format_to_str[std::string("yuv422d")] = DisplayInterfaceFormat::kFormatYCbCr422d;
+  intf_format_to_str[std::string("yuv420")] = DisplayInterfaceFormat::kFormatYCbCr420;
+  intf_format_to_str[std::string("yuv420d")] = DisplayInterfaceFormat::kFormatYCbCr420d;
+  intf_format_to_str[std::string("yuv444")] = DisplayInterfaceFormat::kFormatYCbCr444;
+  hw_intf_->GetNumDisplayAttributes(&num_modes);
+  DLOGI("Num modes = %d",num_modes);
+  // Get display attribute for each mode
+  std::vector<HWDisplayAttributes> attrib(num_modes);
+  std::vector<uint32_t> vics(num_modes);
+  for (index = 0; index < num_modes; index++) {
+    hw_intf_->GetDisplayAttributes(index, &attrib[index]);
+    vics[index] = attrib[index].vic;
+  }
+  try {
+    char cr = '\r';
+    while (std::getline(res_file, line, cr)) {
+      char hash = '#';
+      std::size_t found = 0;
+      found = line.find(hash);
+      if (found != std::string::npos) {
+        // # is found, ignore this line
+        DLOGI("Hash found");
+        continue;
+      }
+      char colon = ':';
+      found = line.find(colon);
+      if (found != std::string::npos) {
+        DLOGI("Colon found at %d",found);
+        std::string vic_str = line.substr(0, found);
+        int vic = std::stoi(vic_str);
+        if (vic > standard_vic_) {
+          DLOGE("Invalid svd %d",vic);
+          continue;
+        }
+        std::string fmt_str = line.substr(found+1, line.size());
+        std::map<std::string, DisplayInterfaceFormat>::iterator fmt_str_it = intf_format_to_str.find(fmt_str);
+        if (fmt_str_it == intf_format_to_str.end()) {
+          DLOGE("Invalid color token  %s",fmt_str.c_str());
+          continue;
+        }
+        DisplayInterfaceFormat fmt = fmt_str_it->second;
+        DLOGI("Preferred format = %d", fmt);
+        std::vector<uint32_t>::iterator vic_itr = std::find(vics.begin(), vics.end(), vic);
+        if (vic_itr != vics.end())
+        {
+          uint32_t index = static_cast<uint32_t>(vic_itr - vics.begin());
+          DLOGI("Display supports vic %d!.. index = %d",vic, index);
+          if (fmt == DisplayInterfaceFormat::kFormatRGB) {
+            if (attrib[index].pixel_formats & DisplayInterfaceFormat::kFormatRGB) {
+              *format = DisplayInterfaceFormat::kFormatRGB;
+              return index;
+            } else {
+              DLOGI("RGB not supported by Display attributes[%d]",index);
+            }
+          } else if (fmt == DisplayInterfaceFormat::kFormatYCbCr422 ||
+                     fmt == DisplayInterfaceFormat::kFormatYCbCr422d) {
+            if(attrib[index].pixel_formats & DisplayInterfaceFormat::kFormatYCbCr422) {
+              *format = DisplayInterfaceFormat::kFormatYCbCr422;
+              return index;
+            } else {
+              DLOGI("YUV422 not supported by Display attributes[%d]",index);
+            }
+          } else if(fmt == DisplayInterfaceFormat::kFormatYCbCr420 ||
+                    fmt == DisplayInterfaceFormat::kFormatYCbCr420d) {
+            if(attrib[index].pixel_formats & DisplayInterfaceFormat::kFormatYCbCr420) {
+              *format = DisplayInterfaceFormat::kFormatYCbCr420;
+              return index;
+            } else {
+              DLOGI("YUV420 not supported by Display attributes[%d]", index);
+            }
+          } else {
+            DLOGI("Invalid format %d",fmt);
+          }
+        } else {
+          DLOGI("Display does not support vic %d ",vic);
+        }
+      } else {
+        DLOGE("Delimiter : not found");
+      }
+    }
+  } catch (const std::invalid_argument& ia) {
+    DLOGE("Invalid argument exception %s",ia.what());
+    return 0;
+  } catch (const std::exception& e) {
+    DLOGE("Exception occurred %s",e.what());
+    return 0;
+  } catch(...) {
+      DLOGE("Exception occurred ");
+      return 0;
+  }
+  // None of the resolutions are supported by TV.
+  const int default_vic = 2;   // Default to 480p RGB.
+  DisplayInterfaceFormat def_fmt = DisplayInterfaceFormat::kFormatRGB;
+  std::vector<uint32_t>::iterator def_vic_itr = std::find(vics.begin(), vics.end(), default_vic);
+  if (def_vic_itr != vics.end())
+  {
+    uint32_t def_index = static_cast<uint32_t>(def_vic_itr - vics.begin());
+    *format = def_fmt;
+    return def_index;
+  } else {
+    // Even 480p is not supported.
+    DLOGE("480p is not supported!");
+    return 0;
+  }
+  return 0;
+}
+
 uint32_t DisplayHDMI::GetBestConfig(HWS3DMode s3d_mode) {
   uint32_t best_index = 0, index;
   uint32_t num_modes = 0;
@@ -199,17 +340,46 @@ uint32_t DisplayHDMI::GetBestConfig(HWS3DMode s3d_mode) {
   index = 0;
   best_index = UINT32(index);
   for (size_t index = best_index + 1; index < num_modes; index ++) {
-    // TODO(user): Need to add support to S3D modes
-    // From the available configs, select the best
-    // Ex: 1920x1080@60Hz is better than 1920x1080@30 and 1920x1080@30 is better than 1280x720@60
-    if (attrib[index].x_pixels > attrib[best_index].x_pixels) {
+
+    uint32_t best_clock_khz = IsFormatOnlyYUV(attrib[best_index]) ?
+             attrib[best_index].clock_khz/2 : attrib[best_index].clock_khz;
+    uint32_t current_clock_khz = IsFormatOnlyYUV(attrib[index]) ?
+             attrib[index].clock_khz/2 : attrib[index].clock_khz;
+    if (current_clock_khz > best_clock_khz) {
+      DLOGI("Best index = %d .Best pixel clock = %d .Previous best was %d",
+            index, current_clock_khz, best_clock_khz);
       best_index = UINT32(index);
-    } else if (attrib[index].x_pixels == attrib[best_index].x_pixels) {
-      if (attrib[index].y_pixels > attrib[best_index].y_pixels) {
+    } else if (current_clock_khz == best_clock_khz) {
+      DLOGI("Same pix clock. clock = %d . v1 = %d.. v2 = %d",
+      current_clock_khz, attrib[best_index].vic, attrib[index].vic);
+      if ((attrib[index].vic > standard_vic_ &&
+          attrib[best_index].vic <= standard_vic_)) {
+        // we should not select the non-standard vic-id.
+        DLOGI("Standard vic already selected");
+        continue;
+      } else if((attrib[index].vic <= standard_vic_ &&
+                attrib[best_index].vic > standard_vic_)) {
+        // select the standard vic-id
         best_index = UINT32(index);
-      } else if (attrib[index].y_pixels == attrib[best_index].y_pixels) {
-        if (attrib[index].vsync_period_ns < attrib[best_index].vsync_period_ns) {
+        DLOGI("Selecting Standard vic now. Best index = %d", best_index);
+        continue;
+      }
+      if (attrib[index].x_pixels > attrib[best_index].x_pixels) {
+        DLOGI("Best index = %d .Best xpixel  = %d .Previous best was %d",
+              index,attrib[index].x_pixels,attrib[best_index].x_pixels);
+        best_index = UINT32(index);
+      } else if (attrib[index].x_pixels == attrib[best_index].x_pixels) {
+        if (attrib[index].y_pixels > attrib[best_index].y_pixels) {
+          DLOGI("Best index = %d .Best ypixel  = %d .Previous best was %d",
+                index, attrib[index].y_pixels, attrib[best_index].y_pixels);
           best_index = UINT32(index);
+        } else if (attrib[index].y_pixels == attrib[best_index].y_pixels) {
+          if (attrib[index].vsync_period_ns < attrib[best_index].vsync_period_ns) {
+            DLOGI("Best index = %d .Best vsync_period = %d .Previous best was %d",
+                  index, attrib[index].vsync_period_ns,
+                  attrib[best_index].vsync_period_ns);
+            best_index = UINT32(index);
+          }
         }
       }
     }
@@ -223,10 +393,83 @@ uint32_t DisplayHDMI::GetBestConfig(HWS3DMode s3d_mode) {
     // For the config, get the corresponding index
     DisplayError error = hw_intf_->GetConfigIndex(val, &config_index);
     if (error == kErrorNone)
-      return config_index;
+      best_index = config_index;
+  }
+  return best_index;
+}
+
+DisplayError DisplayHDMI::SetBestColorFormat(uint32_t best_index,
+                                             DisplayInterfaceFormat pref_format) {
+  uint32_t num_modes = 0;
+  DisplayError error = kErrorNone;
+  HWDisplayAttributes best_attrib;
+
+  hw_intf_->GetNumDisplayAttributes(&num_modes);
+
+  // Get display attribute for best config
+  if (best_index >= num_modes) {
+    DLOGE("Invalid mode index %d mode size %d", best_index, num_modes);
+    return kErrorParameters;
   }
 
-  return best_index;
+  hw_intf_->GetDisplayAttributes(best_index, &best_attrib);
+
+  if (pref_format != DisplayInterfaceFormat::kFormatNone) {
+    error = hw_intf_->SetDisplayFormat(best_index, pref_format);
+    if (error == kErrorNone) {
+      DLOGI("Preferred format(%d) from file is supported by Display attributes[%d]",
+            pref_format, best_index);
+    }
+  } else {
+    if (hw_panel_info_.hdr_enabled) {
+      DLOGI("HDR Mode is ON. index: %d", best_index);
+      if (best_attrib.pixel_formats & DisplayInterfaceFormat::kFormatYCbCr422) {
+        error = hw_intf_->SetDisplayFormat(best_index,
+                                           DisplayInterfaceFormat::kFormatYCbCr422);
+        if (error == kErrorNone) {
+          DLOGI("YUV422 is supported by Display attributes[%d]", best_index);
+        }
+      } else if (best_attrib.pixel_formats & DisplayInterfaceFormat::kFormatYCbCr420) {
+        error = hw_intf_->SetDisplayFormat(best_index,
+                                           DisplayInterfaceFormat::kFormatYCbCr420);
+        if (error == kErrorNone) {
+          DLOGI("YUV420 is supported by Display attributes[%d]", best_index);
+        }
+      } else if (best_attrib.pixel_formats & DisplayInterfaceFormat::kFormatRGB) {
+        error = hw_intf_->SetDisplayFormat(best_index,
+                                           DisplayInterfaceFormat::kFormatRGB);
+        if (error == kErrorNone) {
+          DLOGI("RGB is supported by Display attributes[%d]", best_index);
+        }
+      } else {
+        DLOGE("No format supported with HDR enabled[%d]", best_index);
+      }
+    } else {
+      DLOGI("HDR Mode is OFF. index: %d", best_index);
+      if (best_attrib.pixel_formats & DisplayInterfaceFormat::kFormatRGB) {
+        error = hw_intf_->SetDisplayFormat(best_index,
+                                           DisplayInterfaceFormat::kFormatRGB);
+        if (error == kErrorNone) {
+          DLOGI("RGB is supported by Display attributes[%d]", best_index);
+        }
+      } else if (best_attrib.pixel_formats & DisplayInterfaceFormat::kFormatYCbCr420) {
+        error = hw_intf_->SetDisplayFormat(best_index,
+                                           DisplayInterfaceFormat::kFormatYCbCr420);
+        if (error == kErrorNone) {
+          DLOGI("YUV420 is supported by Display attributes[%d]", best_index);
+        }
+      } else if (best_attrib.pixel_formats & DisplayInterfaceFormat::kFormatYCbCr422) {
+        error = hw_intf_->SetDisplayFormat(best_index,
+                                           DisplayInterfaceFormat::kFormatYCbCr422);
+        if (error == kErrorNone) {
+          DLOGI("YUV422 is supported by Display attributes[%d]", best_index);
+        }
+      } else {
+        DLOGE("No format supported with HDR disabled[%d]", best_index);
+      }
+    }
+  }
+  return error;
 }
 
 void DisplayHDMI::GetScanSupport() {

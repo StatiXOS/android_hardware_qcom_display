@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted
 * provided that the following conditions are met:
@@ -148,6 +148,16 @@ enum DisplayEvent {
   kPanelDeadEvent,     // Event triggered by ESD.
 };
 
+enum DisplayInterfaceFormat {
+  kFormatNone          = 0,
+  kFormatRGB           = 1,
+  kFormatYCbCr422      = 1 << 1,
+  kFormatYCbCr422d     = 1 << 2,
+  kFormatYCbCr420      = 1 << 3,
+  kFormatYCbCr420d     = 1 << 4,
+  kFormatYCbCr444      = 1 << 5,
+};
+
 /*! @brief This structure defines configuration for fixed properties of a display device.
 
   @sa DisplayInterface::GetConfig
@@ -179,6 +189,8 @@ struct DisplayConfigVariableInfo {
   uint32_t fps = 0;               //!< Frame rate per second.
   uint32_t vsync_period_ns = 0;   //!< VSync period in nanoseconds.
   bool is_yuv = false;            //!< If the display output is in YUV format.
+  uint32_t pixel_formats = 0;     //!< RGB bit 1 is set, YUV422 bit 2 is set, YUV420 bit 3.
+  DisplayInterfaceFormat pref_fmt = DisplayInterfaceFormat::kFormatNone;
 };
 
 /*! @brief Event data associated with VSync event.
