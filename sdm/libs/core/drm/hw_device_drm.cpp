@@ -1217,6 +1217,11 @@ void HWDeviceDRM::SetSolidfillStages() {
   }
 }
 
+void HWDeviceDRM::ClearSolidfillStages() {
+  solid_fills_.clear();
+  SetSolidfillStages();
+}
+
 DisplayError HWDeviceDRM::Validate(HWLayers *hw_layers) {
   DTRACE_SCOPED();
 
@@ -1370,6 +1375,7 @@ DisplayError HWDeviceDRM::AtomicCommit(HWLayers *hw_layers) {
 
 DisplayError HWDeviceDRM::Flush(HWLayers *hw_layers) {
   DTRACE_SCOPED();
+  ClearSolidfillStages();
   int ret = drm_atomic_intf_->Commit(false /* synchronous */, false /* retain_planes*/);
   if (ret) {
     DLOGE("failed with error %d", ret);
