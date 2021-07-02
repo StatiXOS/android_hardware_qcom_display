@@ -231,3 +231,26 @@ cc_binary {
     init_rc: ["vendor.qti.hardware.display.allocator-service.rc"],
     vintf_fragments: ["vendor.qti.hardware.display.allocator-service.xml"],
 }
+
+//libgralloc
+cc_library_shared {
+    name: "libgralloc.qti",
+    vendor: true,
+    cflags: [
+        "-Wno-sign-conversion",
+        "-DLOG_TAG=\"qtigralloc\"",
+    ],
+    shared_libs: [
+         "liblog",
+         "libcutils",
+         "libutils",
+         "libgralloctypes",
+         "libhidlbase",
+         "libhardware",
+         "android.hardware.graphics.mapper@4.0",
+    ],
+
+    srcs: ["QtiGralloc.cpp"],
+
+    header_libs: ["display_intf_headers"],
+}
