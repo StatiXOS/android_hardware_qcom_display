@@ -12,7 +12,11 @@ PRODUCT_PACKAGES += \
     memtrack.$(TARGET_BOARD_PLATFORM) \
     libsdmcore \
     libsdmutils \
-    libqdMetaData \
+    libqdMetaData.vendor \
+    libqdMetaData.system \
+    libdisplayconfig \
+    libgralloc.qti \
+    libdisplayconfig.qti \
     libdisplayconfig.vendor \
     libtinyxml \
     libvulkan
