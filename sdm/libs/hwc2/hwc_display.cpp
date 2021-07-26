@@ -1718,12 +1718,13 @@ HWC2::Error HWCDisplay::GetHdrCapabilities(uint32_t *out_num_types, int32_t *out
   }
 
   if (out_types == nullptr) {
-    // We support HDR10 and HLG.
-    *out_num_types = 2;
+    // We support HDR10, HLG and HDR10_PLUS.
+    *out_num_types = 3;
   } else {
-    // HDR10 and HLG are supported.
+    // HDR10, HLG and HDR10_PLUS are supported.
     out_types[0] = HAL_HDR_HDR10;
     out_types[1] = HAL_HDR_HLG;
+    out_types[2] = HAL_HDR_HDR10_PLUS;
     *out_max_luminance = fixed_info.max_luminance;
     *out_max_average_luminance = fixed_info.average_luminance;
     *out_min_luminance = fixed_info.min_luminance;
