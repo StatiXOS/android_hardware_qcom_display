@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "4165a7d2_a6e0880f",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2021-08-08T00:35:02Z",
+      "side": 1,
+      "message": "This advertises the support for HDR10+ to userspace applications however, the devices that use this HAL don\u0027t have the hardware support for this high dynamic range specification. ",
+      "revId": "da6a094c24ed4ceddda6f55487678e902e03a88e",
+      "serverId": "039621b9-0c7c-40f3-867c-684f4bc911d6"
+    }
+  ]
+}
