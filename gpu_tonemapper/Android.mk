@@ -13,7 +13,7 @@ LOCAL_HEADER_LIBRARIES    := display_headers
 LOCAL_ADDITIONAL_DEPENDENCIES := $(common_deps) $(kernel_deps)
 
 LOCAL_CFLAGS              := $(version_flag) -Wno-missing-field-initializers -Wall \
-                             -Wno-unused-parameter -DLOG_TAG=\"GPU_TONEMAPPER\"
+                             -Wno-unused-parameter -DLOG_TAG=\"GPU_TONEMAPPER\" -Wno-sometimes-uninitialized
 
 LOCAL_SRC_FILES           := TonemapFactory.cpp \
                              glengine.cpp \
