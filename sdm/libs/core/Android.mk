@@ -27,7 +27,7 @@ ifeq ($(ENABLE_HYP),true)
 endif
 
 ifeq ($(TARGET_USES_FOD_ZPOS), true)
-    LOCAL_CFLAGS              += -DFOD_ZPOS
+    LOCAL_CFLAGS              += -DFOD_ZPOS -DFOD_PRESSED_LAYER_ZORDER=$(SOONG_CONFIG_UDFPS_ZPOS)
 endif
 
 LOCAL_ADDITIONAL_DEPENDENCIES := $(common_deps)
