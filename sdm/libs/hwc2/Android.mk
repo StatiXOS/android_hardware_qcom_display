@@ -49,7 +49,7 @@ LOCAL_CFLAGS                  += -DCONFIG_BASEID_FROM_PROP
 endif
 
 ifeq ($(TARGET_USES_FOD_ZPOS), true)
-LOCAL_CFLAGS                  += -DFOD_ZPOS
+LOCAL_CFLAGS                  += -DFOD_ZPOS -DFOD_PRESSED_LAYER_ZORDER=$(TARGET_FOD_ZPOS)
 endif
 
 LOCAL_SRC_FILES               := hwc_session.cpp \
