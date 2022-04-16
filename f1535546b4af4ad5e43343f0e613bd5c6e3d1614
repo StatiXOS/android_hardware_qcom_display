@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "03bde642_de87d8cf",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000000
+      },
+      "writtenOn": "2022-04-16T01:33:59Z",
+      "side": 1,
+      "message": "doesn\u0027t need to be soong_config, just make it a normal make var",
+      "revId": "f1535546b4af4ad5e43343f0e613bd5c6e3d1614",
+      "serverId": "039621b9-0c7c-40f3-867c-684f4bc911d6"
+    }
+  ]
+}
