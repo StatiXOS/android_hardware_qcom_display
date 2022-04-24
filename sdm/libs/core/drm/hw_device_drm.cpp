@@ -80,6 +80,7 @@
 #endif
 
 #define DEST_SCALAR_OVERFETCH_SIZE 5
+#define FOD_PRESSED_LAYER_ZORDER 0x20000000u
 
 using std::string;
 using std::to_string;
