@@ -1614,22 +1614,48 @@ HWC2::Error HWCDisplay::GetHdrCapabilities(uint32_t *out_num_types, int32_t *out
 
   uint32_t num_types = 0;
   if (fixed_info.hdr_plus_supported) {
+<<<<<<< HEAD   (a9cca3 gralloc: Comment out qti YCBCR conversion)
+    num_types = UINT32(Hdr::HDR10_PLUS) - 1;
+=======
+#ifdef TARGET_SUPPORTS_DOLBY_VISION
+    num_types = UINT32(Hdr::HDR10_PLUS);
+>>>>>>> CHANGE (62292f hwc_display: Guard Dolby Vision support)
+  } else {
+    num_types = UINT32(Hdr::HLG) - 1;
+  }
+
+<<<<<<< HEAD   (a9cca3 gralloc: Comment out qti YCBCR conversion)
+  // We support HDR10, HLG and HDR10_PLUS.
+=======
+  // We support DOLBY_VISION, HDR10, HLG and HDR10_PLUS.
+#else
     num_types = UINT32(Hdr::HDR10_PLUS) - 1;
   } else {
     num_types = UINT32(Hdr::HLG) - 1;
   }
 
   // We support HDR10, HLG and HDR10_PLUS.
+#endif /* TARGET_SUPPORTS_DOLBY_VISION */
+>>>>>>> CHANGE (62292f hwc_display: Guard Dolby Vision support)
   if (out_types == nullptr) {
     *out_num_types = num_types;
   } else {
     uint32_t max_out_types = std::min(*out_num_types, num_types);
     int32_t type = static_cast<int32_t>(Hdr::DOLBY_VISION);
     for (int32_t i = 0; i < max_out_types; i++) {
+<<<<<<< HEAD   (a9cca3 gralloc: Comment out qti YCBCR conversion)
       while (type == static_cast<int32_t>(Hdr::DOLBY_VISION) /* Skip list */) {
         // Skip the type
         type++;
       }
+=======
+#ifndef TARGET_SUPPORTS_DOLBY_VISION
+      while (type == static_cast<int32_t>(Hdr::DOLBY_VISION) /* Skip list */) {
+        // Skip the type
+        type++;
+      }
+#endif /* TARGET_SUPPORTS_DOLBY_VISION */
+>>>>>>> CHANGE (62292f hwc_display: Guard Dolby Vision support)
       if (type > (num_types + 1)) {
         break;
       }
