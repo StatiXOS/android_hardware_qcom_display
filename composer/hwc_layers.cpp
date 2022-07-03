@@ -21,6 +21,7 @@
 #include <qdMetaData.h>
 #include <qd_utils.h>
 #include <utils/debug.h>
+#include <display/fod_defs.h>
 #include <stdint.h>
 #include <utility>
 #include <cmath>

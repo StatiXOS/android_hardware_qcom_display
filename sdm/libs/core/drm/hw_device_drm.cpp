@@ -54,6 +54,7 @@
 #include <utils/rect.h>
 #include <utils/utils.h>
 #include <utils/fence.h>
+#include <display/fod_defs.h>
 
 #include <sstream>
 #include <ctime>
