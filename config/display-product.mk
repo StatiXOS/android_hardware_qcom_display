@@ -8,10 +8,10 @@ PRODUCT_PACKAGES += \
     vendor.qti.hardware.display.composer-service \
     android.hardware.memtrack@1.0-impl \
     android.hardware.memtrack@1.0-service \
-    gralloc.$(TARGET_BOARD_PLATFORM) \
-    lights.$(TARGET_BOARD_PLATFORM) \
-    hwcomposer.$(TARGET_BOARD_PLATFORM) \
-    memtrack.$(TARGET_BOARD_PLATFORM) \
+    gralloc.$(PRODUCT_BOARD_PLATFORM) \
+    lights.$(PRODUCT_BOARD_PLATFORM) \
+    hwcomposer.$(PRODUCT_BOARD_PLATFORM) \
+    memtrack.$(PRODUCT_BOARD_PLATFORM) \
     libsdmcore \
     libsdmutils \
     libqdMetaData \
@@ -78,7 +78,7 @@ PRODUCT_PROPERTY_OVERRIDES += \
     vendor.display.use_smooth_motion=1 \
 
 # Enable offline rotator for Bengal.
-ifneq ($(TARGET_BOARD_PLATFORM),bengal)
+ifneq ($(PRODUCT_BOARD_PLATFORM),bengal)
 PRODUCT_PROPERTY_OVERRIDES += \
     vendor.display.disable_offline_rotator=1
 else
@@ -95,7 +95,7 @@ PRODUCT_PROPERTY_OVERRIDES += \
     debug.sf.high_fps_early_gl_phase_offset_ns=-5000000
 endif
 
-ifeq ($(TARGET_BOARD_PLATFORM),kona)
+ifeq ($(PRODUCT_BOARD_PLATFORM),kona)
 PRODUCT_PROPERTY_OVERRIDES += \
     debug.sf.enable_gl_backpressure=1 \
     debug.sf.enable_advanced_sf_phase_offset=1 \
@@ -104,7 +104,7 @@ PRODUCT_PROPERTY_OVERRIDES += \
     debug.sf.high_fps_early_gl_phase_offset_ns=-4000000
 endif
 
-ifeq ($(TARGET_BOARD_PLATFORM),lito)
+ifeq ($(PRODUCT_BOARD_PLATFORM),lito)
 PRODUCT_PROPERTY_OVERRIDES += \
     vendor.display.enable_perf_hint_large_comp_cycle=1 \
     debug.sf.high_fps_late_sf_phase_offset_ns=-4000000 \
