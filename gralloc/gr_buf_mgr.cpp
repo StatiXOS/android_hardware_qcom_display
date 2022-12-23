@@ -66,7 +66,13 @@ static uint64_t getMetaDataSize(uint64_t reserved_region_size) {
                                static_cast<uint32_t>(reserved_region_size)));
 }
 
-static void unmapAndReset(private_handle_t *handle, uint64_t reserved_region_size = 0) {
+static void unmapAndReset(private_handle_t *handle
+#ifdef GRALLOC_HANDLE_HAS_NO_RESERVED_SIZE
+, uint64_t reserved_region_size = 0) {
+#else
+) {
+  uint64_t reserved_region_size = handle->reserved_size;
+#endif
   if (private_handle_t::validate(handle) == 0 && handle->base_metadata) {
     munmap(reinterpret_cast<void *>(handle->base_metadata),
            static_cast<uint32_t>(getMetaDataSize(reserved_region_size)));
@@ -74,7 +80,13 @@ static void unmapAndReset(private_handle_t *handle, uint64_t reserved_region_siz
   }
 }
 
-static int validateAndMap(private_handle_t *handle, uint64_t reserved_region_size = 0) {
+static int validateAndMap(private_handle_t *handle
+#ifdef GRALLOC_HANDLE_HAS_NO_RESERVED_SIZE
+, uint64_t reserved_region_size = 0) {
+#else
+) {
+  uint64_t reserved_region_size = handle->reserved_size;
+#endif
   if (private_handle_t::validate(handle)) {
     ALOGE("%s: Private handle is invalid - handle:%p", __func__, handle);
     return -1;
@@ -94,7 +106,7 @@ static int validateAndMap(private_handle_t *handle, uint64_t reserved_region_siz
       return -1;
     }
     handle->base_metadata = (uintptr_t)base;
-#ifdef METADATA_V2
+#ifdef GRALLOC_HANDLE_HAS_NO_RESERVED_SIZE
     // The allocator process gets the reserved region size from the BufferDescriptor.
     // When importing to another process, the reserved size is unknown until mapping the metadata,
     // hence the re-mapping below
@@ -102,7 +114,7 @@ static int validateAndMap(private_handle_t *handle, uint64_t reserved_region_siz
     if (reserved_region_size == 0 && metadata->reservedSize) {
       size = getMetaDataSize(metadata->reservedSize);
       unmapAndReset(handle);
-      void *new_base = mmap(NULL, static_cast<uint32_t>(size), PROT_READ | PROT_WRITE, MAP_SHARED, handle->fd_metadata, 0);
+      void *new_base = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, handle->fd_metadata, 0);
       if (new_base == reinterpret_cast<void *>(MAP_FAILED)) {
         ALOGE("%s: metadata mmap failed - handle:%p fd: %d err: %s", __func__, handle,
               handle->fd_metadata, strerror(errno));
@@ -725,7 +737,13 @@ Error BufferManager::FreeBuffer(std::shared_ptr<Buffer> buf) {
     return Error::BAD_BUFFER;
   }
 
-  auto meta_size = getMetaDataSize(buf->reserved_size);
+  auto meta_size = getMetaDataSize(
+#ifndef GRALLOC_HANDLE_HAS_NO_RESERVED_SIZE
+    hnd->reserved_size
+#else
+    buf->reserved_size
+#endif
+  );
 
   if (allocator_->FreeBuffer(reinterpret_cast<void *>(hnd->base), hnd->size, hnd->offset, hnd->fd,
                              buf->ion_handle_main) != 0) {
@@ -766,9 +784,14 @@ void BufferManager::RegisterHandleLocked(const private_handle_t *hnd, int ion_ha
   auto buffer = std::make_shared<Buffer>(hnd, ion_handle, ion_handle_meta);
 
   if (hnd->base_metadata) {
-    auto metadata = reinterpret_cast<MetaData_t *>(hnd->base_metadata);
 #ifdef METADATA_V2
     buffer->reserved_size = metadata->reservedSize;
+#ifndef GRALLOC_HANDLE_HAS_NO_RESERVED_SIZE
+    buffer->reserved_size = hnd->reserved_size;
+#else
+    auto metadata = reinterpret_cast<MetaData_t *>(hnd->base_metadata);
+    buffer->reserved_size = metadata->reservedSize;
+#endif
     if (buffer->reserved_size > 0) {
       buffer->reserved_region_ptr =
           reinterpret_cast<void *>(hnd->base_metadata + sizeof(MetaData_t));
@@ -1050,6 +1073,9 @@ Error BufferManager::AllocateBuffer(const BufferDescriptor &descriptor, buffer_h
       data.fd, e_data.fd, INT(flags), INT(alignedw), INT(alignedh), descriptor.GetWidth(),
       descriptor.GetHeight(), format, buffer_type, data.size, usage);
 
+#ifndef GRALLOC_HANDLE_HAS_NO_RESERVED_SIZE
+  hnd->reserved_size = static_cast<unsigned int>(descriptor.GetReservedSize());
+#endif
   hnd->id = ++next_id_;
   hnd->base = 0;
   hnd->base_metadata = 0;
@@ -1060,11 +1086,11 @@ Error BufferManager::AllocateBuffer(const BufferDescriptor &descriptor, buffer_h
     setMetaDataAndUnmap(hnd, SET_GRAPHICS_METADATA, reinterpret_cast<void *>(&graphics_metadata));
   }
 
-#ifdef METADATA_V2
-  auto error = validateAndMap(hnd, descriptor.GetReservedSize());
-#else
-  auto error = validateAndMap(hnd);
+  auto error = validateAndMap(hnd
+#ifdef GRALLOC_HANDLE_HAS_NO_RESERVED_SIZE
+    , descriptor.GetReservedSize()
 #endif
+  );
 
   if (error != 0) {
     ALOGE("validateAndMap failed");
@@ -1086,7 +1112,11 @@ Error BufferManager::AllocateBuffer(const BufferDescriptor &descriptor, buffer_h
   metadata->crop.right = hnd->width;
   metadata->crop.bottom = hnd->height;
 
-  unmapAndReset(hnd, descriptor.GetReservedSize());
+  unmapAndReset(hnd
+#ifdef GRALLOC_HANDLE_HAS_NO_RESERVED_SIZE
+    , descriptor.GetReservedSize()
+#endif
+  );
 
   *handle = hnd;
 
