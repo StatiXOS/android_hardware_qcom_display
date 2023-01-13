@@ -16,6 +16,23 @@
       "message": "Please test this out and merge it. As of now you have to repopick 9296.",
       "revId": "3b5698b37d57b7b0c82d1c0168904f5eff2f9f0e",
       "serverId": "039621b9-0c7c-40f3-867c-684f4bc911d6"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "105f01b2_5f96735e",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2023-01-13T19:05:48Z",
+      "side": 1,
+      "message": "Actually you\u0027re missing reserved size commits. Please pick them up from here: https://gerrit.aospa.co/q/project:AOSPA%252Fandroid_hardware_qcom_display+branch:topaz-855",
+      "revId": "3b5698b37d57b7b0c82d1c0168904f5eff2f9f0e",
+      "serverId": "039621b9-0c7c-40f3-867c-684f4bc911d6"
     }
   ]
 }
