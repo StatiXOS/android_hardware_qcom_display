@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2014 - 2020, The Linux Foundation. All rights reserved.
+* Copyright (c) 2014 - 2021, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted
 * provided that the following conditions are met:
@@ -20,6 +20,40 @@
 * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*
+* Changes from Qualcomm Innovation Center are provided under the following license:
+*
+* Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted (subject to the limitations in the
+* disclaimer below) provided that the following conditions are met:
+*
+*    * Redistributions of source code must retain the above copyright
+*      notice, this list of conditions and the following disclaimer.
+*
+*    * Redistributions in binary form must reproduce the above
+*      copyright notice, this list of conditions and the following
+*      disclaimer in the documentation and/or other materials provided
+*      with the distribution.
+*
+*    * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+*      contributors may be used to endorse or promote products derived
+*      from this software without specific prior written permission.
+*
+* NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+* GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+* HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+* WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+* MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+* IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+* ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+* GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+* INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+* IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+* OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+* IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include <utils/constants.h>
@@ -34,7 +68,9 @@
 #include <vector>
 
 #include "display_builtin.h"
+#ifndef TARGET_HEADLESS
 #include "drm_interface.h"
+#endif
 #include "drm_master.h"
 #include "hw_info_interface.h"
 #include "hw_interface.h"
@@ -115,12 +151,26 @@ DisplayError DisplayBuiltIn::Init() {
 
   current_refresh_rate_ = hw_panel_info_.max_fps;
 
-  initColorSamplingState();
-
   int value = 0;
+  Debug::Get()->GetProperty(ENABLE_HISTOGRAM_INTR, &value);
+  if (value == 1) {
+    initColorSamplingState();
+  }
+
+  value = 0;
   Debug::Get()->GetProperty(DEFER_FPS_FRAME_COUNT, &value);
   deferred_config_.frame_count = (value > 0) ? UINT32(value) : 0;
 
+error = CreatePanelfeatures();
+  if (error != kErrorNone) {
+    DLOGE("Failed to setup panel feature factory, error: %d", error);
+  } else {
+    // Get status of RC enablement property. Default RC is disabled.
+    int rc_prop_value = 0;
+    Debug::GetProperty(ENABLE_ROUNDED_CORNER, &rc_prop_value);
+    rc_enable_prop_ = rc_prop_value ? true : false;
+    DLOGI("RC feature %s.", rc_enable_prop_ ? "enabled" : "disabled");
+  }
   value = 0;
   DebugHandler::Get()->GetProperty(DISABLE_DYNAMIC_FPS, &value);
   disable_dyn_fps_ = (value == 1);
@@ -144,6 +194,43 @@ DisplayError DisplayBuiltIn::Deinit() {
 
   dpps_info_.Deinit();
   return DisplayBase::Deinit();
+}
+
+// Create instance for RC, SPR and demura feature.
+DisplayError DisplayBuiltIn::CreatePanelfeatures() {
+  if (pf_factory_ && prop_intf_) {
+    return kErrorNone;
+  }
+
+  if (!GetPanelFeatureFactoryIntfFunc_) {
+    DynLib feature_impl_lib;
+    if (feature_impl_lib.Open(EXTENSION_LIBRARY_NAME)) {
+      if (!feature_impl_lib.Sym("GetPanelFeatureFactoryIntf",
+                                reinterpret_cast<void **>(&GetPanelFeatureFactoryIntfFunc_))) {
+        DLOGE("Unable to load symbols, error = %s", feature_impl_lib.Error());
+        return kErrorUndefined;
+      }
+    } else {
+      DLOGW("Unable to load = %s, error = %s", EXTENSION_LIBRARY_NAME, feature_impl_lib.Error());
+      DLOGW("Panel features are not supported");
+      return kErrorNotSupported;
+    }
+  }
+
+  pf_factory_ = GetPanelFeatureFactoryIntfFunc_();
+  if (!pf_factory_) {
+    DLOGE("Failed to create PanelFeatureFactoryIntf");
+    return kErrorResources;
+  }
+
+  prop_intf_ = hw_intf_->GetPanelFeaturePropertyIntf();
+  if (!prop_intf_) {
+    DLOGE("Failed to create PanelFeaturePropertyIntf");
+    pf_factory_ = nullptr;
+    return kErrorResources;
+  }
+
+  return kErrorNone;
 }
 
 DisplayError DisplayBuiltIn::Prepare(LayerStack *layer_stack) {
@@ -229,6 +316,7 @@ HWAVRModes DisplayBuiltIn::GetAvrMode(QSyncMode mode) {
 
 void DisplayBuiltIn::initColorSamplingState() {
   samplingState = SamplingState::Off;
+#ifndef TARGET_HEADLESS
   histogramCtrl.object_type = DRM_MODE_OBJECT_CRTC;
   histogramCtrl.feature_id = sde_drm::DRMDPPSFeatureID::kFeatureAbaHistCtrl;
   histogramCtrl.value = sde_drm::HistModes::kHistDisabled;
@@ -237,10 +325,12 @@ void DisplayBuiltIn::initColorSamplingState() {
   histogramIRQ.feature_id = sde_drm::DRMDPPSFeatureID::kFeatureAbaHistIRQ;
   histogramIRQ.value = sde_drm::HistModes::kHistDisabled;
   histogramSetup = true;
+#endif
 }
 
 DisplayError DisplayBuiltIn::setColorSamplingState(SamplingState state) {
   samplingState = state;
+#ifndef TARGET_HEADLESS
   if (samplingState == SamplingState::On) {
     histogramCtrl.value = sde_drm::HistModes::kHistEnabled;
     histogramIRQ.value = sde_drm::HistModes::kHistEnabled;
@@ -251,6 +341,9 @@ DisplayError DisplayBuiltIn::setColorSamplingState(SamplingState state) {
 
   // effectively drmModeAtomicAddProperty for the SDE_DSPP_HIST_CTRL_V1
   return DppsProcessOps(kDppsSetFeature, &histogramCtrl, sizeof(histogramCtrl));
+#else
+  return kErrorNone;
+#endif
 }
 
 DisplayError DisplayBuiltIn::colorSamplingOn() {
@@ -307,7 +400,9 @@ DisplayError DisplayBuiltIn::Commit(LayerStack *layer_stack) {
   }
   // effectively drmModeAtomicAddProperty for SDE_DSPP_HIST_IRQ_V1
   if (histogramSetup) {
+#ifndef TARGET_HEADLESS
     DppsProcessOps(kDppsSetFeature, &histogramIRQ, sizeof(histogramIRQ));
+#endif
   }
 
   error = DisplayBase::Commit(layer_stack);
@@ -394,7 +489,7 @@ void DisplayBuiltIn::UpdateDisplayModeParams() {
     ControlPartialUpdate(false /* enable */, &pending);
   } else if (hw_panel_info_.mode == kModeCommand) {
     // Flush idle timeout value currently set.
-    comp_manager_->SetIdleTimeoutMs(display_comp_ctx_, 0);
+    comp_manager_->SetIdleTimeoutMs(display_comp_ctx_, 0, 0);
     switch_to_cmd_ = true;
   }
 }
@@ -430,9 +525,9 @@ DisplayError DisplayBuiltIn::SetDisplayState(DisplayState state, bool teardown,
   return kErrorNone;
 }
 
-void DisplayBuiltIn::SetIdleTimeoutMs(uint32_t active_ms) {
+void DisplayBuiltIn::SetIdleTimeoutMs(uint32_t active_ms, uint32_t inactive_ms) {
   lock_guard<recursive_mutex> obj(recursive_mutex_);
-  comp_manager_->SetIdleTimeoutMs(display_comp_ctx_, active_ms);
+  comp_manager_->SetIdleTimeoutMs(display_comp_ctx_, active_ms, inactive_ms);
 }
 
 DisplayError DisplayBuiltIn::SetDisplayMode(uint32_t mode) {
@@ -473,7 +568,7 @@ DisplayError DisplayBuiltIn::SetDisplayMode(uint32_t mode) {
       ControlPartialUpdate(false /* enable */, &pending);
     } else if (mode == kModeCommand) {
       // Flush idle timeout value currently set.
-      comp_manager_->SetIdleTimeoutMs(display_comp_ctx_, 0);
+      comp_manager_->SetIdleTimeoutMs(display_comp_ctx_, 0, 0);
       switch_to_cmd_ = true;
     }
   }
@@ -518,6 +613,7 @@ DisplayError DisplayBuiltIn::SetPanelBrightness(float brightness) {
   DisplayError err = hw_intf_->SetPanelBrightness(level);
   if (err == kErrorNone) {
     level_remainder_ = level_remainder;
+    pending_brightness_ = false;
     DLOGI_IF(kTagDisplay, "Setting brightness to level %d (%f percent)", level,
              brightness * 100);
   } else if (err == kErrorDeferred) {

@@ -17,6 +17,42 @@
  * limitations under the License.
  */
 
+/*
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted (subject to the limitations in the
+ * disclaimer below) provided that the following conditions are met:
+ *
+ *    * Redistributions of source code must retain the above copyright
+ *      notice, this list of conditions and the following disclaimer.
+ *
+ *    * Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials provided
+ *      with the distribution.
+ *
+ *    * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *      contributors may be used to endorse or promote products derived
+ *      from this software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 #include <QService.h>
 #include <binder/Parcel.h>
 #include <core/buffer_allocator.h>
@@ -906,6 +942,14 @@ void HWCSession::RegisterCallback(int32_t descriptor, hwc2_callback_data_t callb
     // Notfify all displays.
     NotifyClientStatus(client_connected_);
   }
+
+  // On SF stop, disable the idle time.
+  if (!pointer && is_idle_time_up_ && hwc_display_[HWC_DISPLAY_PRIMARY]) { // De-registering…
+    DLOGI("disable idle time");
+    hwc_display_[HWC_DISPLAY_PRIMARY]->SetIdleTimeoutMs(0,0);
+    is_idle_time_up_ = false;
+  }
+
   need_invalidate_ = false;
 }
 
@@ -1112,8 +1156,14 @@ int32_t HWCSession::SetPowerMode(hwc2_display_t display, int32_t int_mode) {
     return HWC2_ERROR_NONE;
   }
 
+  // 1. For power transition cases other than Off->On or On->Off, async power mode
+  // will not be used. Hence, set override_mode to false for them.
+  // 2. When SF requests Doze mode transition on panels where Doze mode is not supported
+  // (like video mode), HWComposer.cpp will override the request to "On". Handle such cases
+  // in main thread path.
   if (!((last_power_mode == HWC2::PowerMode::Off && mode == HWC2::PowerMode::On) ||
-     (last_power_mode == HWC2::PowerMode::On && mode == HWC2::PowerMode::Off))) {
+     (last_power_mode == HWC2::PowerMode::On && mode == HWC2::PowerMode::Off)) ||
+     (last_power_mode == HWC2::PowerMode::Off && mode == HWC2::PowerMode::On)) {
     override_mode = false;
   }
 
@@ -1703,6 +1753,18 @@ android::status_t HWCSession::notifyCallback(uint32_t command, const android::Pa
         break;
       }
       status = SetStandByMode(input_parcel);
+      break;
+
+    case qService::IQService::GET_PANEL_RESOLUTION:
+      if (!input_parcel || !output_parcel) {
+        DLOGE("QService command = %d: input_parcel and output_parcel needed.", command);
+        break;
+      }
+      status = GetPanelResolution(input_parcel, output_parcel);
+      break;
+
+    case qService::IQService::DELAY_FIRST_COMMIT:
+      status = DelayFirstCommit();
       break;
 
     default:
@@ -2482,6 +2544,24 @@ void HWCSession::Refresh(hwc2_display_t display) {
   callbacks_.Refresh(display);
 }
 
+android::status_t HWCSession::GetPanelResolution(const android::Parcel *input_parcel,
+                                                 android::Parcel *output_parcel) {
+  SCOPE_LOCK(locker_[HWC_DISPLAY_PRIMARY]);
+
+  if (!hwc_display_[HWC_DISPLAY_PRIMARY]) {
+    DLOGI("Primary display is not initialized");
+    return -EINVAL;
+  }
+  auto panel_width = 0u;
+  auto panel_height = 0u;
+
+  hwc_display_[HWC_DISPLAY_PRIMARY]->GetPanelResolution(&panel_width, &panel_height);
+  output_parcel->writeInt32(INT32(panel_width));
+  output_parcel->writeInt32(INT32(panel_height));
+
+  return android::NO_ERROR;
+}
+
 android::status_t HWCSession::GetVisibleDisplayRect(const android::Parcel *input_parcel,
                                                     android::Parcel *output_parcel) {
   int disp_idx = GetDisplayIndex(input_parcel->readInt32());
@@ -2513,15 +2593,29 @@ android::status_t HWCSession::SetStandByMode(const android::Parcel *input_parcel
   SCOPE_LOCK(locker_[HWC_DISPLAY_PRIMARY]);
 
   bool enable = (input_parcel->readInt32() > 0);
+  bool is_twm = (input_parcel->readInt32() > 0);
 
   if (!hwc_display_[HWC_DISPLAY_PRIMARY]) {
     DLOGI("Primary display is not initialized");
     return -EINVAL;
   }
 
-  hwc_display_[HWC_DISPLAY_PRIMARY]->SetStandByMode(enable);
+  DisplayError error = hwc_display_[HWC_DISPLAY_PRIMARY]->SetStandByMode(enable, is_twm);
+  if (error != kErrorNone) {
+    DLOGE("SetStandByMode failed. Error = %d", error);
+    return -EINVAL;
+  }
 
   return android::NO_ERROR;
+}
+
+android::status_t HWCSession::DelayFirstCommit() {
+  if (!hwc_display_[HWC_DISPLAY_PRIMARY]) {
+    DLOGI("Primary display is not initialized");
+    return -EINVAL;
+  }
+
+  return hwc_display_[HWC_DISPLAY_PRIMARY]->DelayFirstCommit();
 }
 
 int HWCSession::CreatePrimaryDisplay() {
@@ -2911,7 +3005,7 @@ void HWCSession::DestroyPluggableDisplay(DisplayMapInfo *map_info) {
 
   SCOPE_LOCK(system_locker_);
   {
-    SEQUENCE_WAIT_SCOPE_LOCK(locker_[client_id]);
+    SEQUENCE_CANCEL_SCOPE_LOCK(locker_[client_id]);
     auto &hwc_display = hwc_display_[client_id];
     if (!hwc_display) {
       return;
@@ -3000,13 +3094,12 @@ HWC2::Error HWCSession::ValidateDisplayInternal(hwc2_display_t display, uint32_t
       callbacks_.Refresh(display);
       need_invalidate_ = false;
     }
-
-    if (color_mgr_) {
-      color_mgr_->SetColorModeDetailEnhancer(hwc_display_[display]);
-    }
   }
 
-  return hwc_display->Validate(out_num_types, out_num_requests);
+  auto status = HWC2::Error::None;
+  status = hwc_display->Validate(out_num_types, out_num_requests);
+  SetCpuPerfHintLargeCompCycle();
+  return status;
 }
 
 HWC2::Error HWCSession::PresentDisplayInternal(hwc2_display_t display) {
@@ -3113,13 +3206,14 @@ void HWCSession::HandleSecureSession() {
        display < HWCCallbacks::kNumRealDisplays; display++) {
     Locker::ScopeLock lock_d(locker_[display]);
     HWCDisplay *hwc_display = hwc_display_[display];
-    if (!hwc_display || hwc_display->GetDisplayClass() != DISPLAY_CLASS_BUILTIN) {
+    if (!hwc_display) {
       continue;
     }
 
     bool is_active_secure_display = false;
     // The first On/Doze/DozeSuspend built-in display is taken as the secure display.
     if (!found_active_secure_display &&
+        hwc_display->GetDisplayClass() == DISPLAY_CLASS_BUILTIN &&
         hwc_display->GetCurrentPowerMode() != HWC2::PowerMode::Off) {
       is_active_secure_display = true;
       found_active_secure_display = true;
@@ -3416,6 +3510,20 @@ int32_t HWCSession::GetDisplayConnectionType(hwc2_display_t display,
   return HWC2_ERROR_NONE;
 }
 
+int32_t HWCSession::GetClientTargetProperty(hwc2_display_t display,
+                                            HwcClientTargetProperty *outClientTargetProperty) {
+  if (!outClientTargetProperty) {
+    return HWC2_ERROR_BAD_PARAMETER;
+  }
+
+  if (display >= HWCCallbacks::kNumDisplays) {
+    return HWC2_ERROR_BAD_DISPLAY;
+  }
+
+  return CallDisplayFunction(display, &HWCDisplay::GetClientTargetProperty,
+                             outClientTargetProperty);
+}
+
 int32_t HWCSession::GetDisplayBrightnessSupport(hwc2_display_t display, bool *outSupport) {
   if (!outSupport) {
     return HWC2_ERROR_BAD_PARAMETER;
@@ -3603,6 +3711,27 @@ int32_t HWCSession::SetActiveConfigWithConstraints(
 
   return CallDisplayFunction(display, &HWCDisplay::SetActiveConfigWithConstraints, config,
                              vsync_period_change_constraints, out_timeline);
+}
+
+void HWCSession::SetCpuPerfHintLargeCompCycle() {
+  bool found_non_primary_active_display = false;
+
+  // Check any non-primary display is active
+  for (hwc2_display_t display = HWC_DISPLAY_PRIMARY + 1;
+    display < HWCCallbacks::kNumDisplays; display++) {
+    if (hwc_display_[display] == NULL) {
+      continue;
+    }
+    if (hwc_display_[display]->GetCurrentPowerMode() != HWC2::PowerMode::Off) {
+      found_non_primary_active_display = true;
+      break;
+    }
+  }
+
+  // send cpu hint for primary display
+  if (!found_non_primary_active_display) {
+    hwc_display_[HWC_DISPLAY_PRIMARY]->SetCpuPerfHintLargeCompCycle();
+  }
 }
 
 }  // namespace sdm
