@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "ef5e8fae_9ae452dd",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000000
+      },
+      "writtenOn": "2023-01-20T07:48:15Z",
+      "side": 1,
+      "message": "i did this for intf, don\u0027t duplicate stuff for no reason. move to statix vendor and link against that",
+      "revId": "ab2fee2fba157b5a204af4c6fdd8abf274bb732a",
+      "serverId": "039621b9-0c7c-40f3-867c-684f4bc911d6"
+    }
+  ]
+}
