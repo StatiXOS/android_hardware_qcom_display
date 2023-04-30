@@ -6,3 +6,4 @@ service vendor.qti.hardware.display.composer /vendor/bin/hw/vendor.qti.hardware.
     onrestart restart surfaceflinger
     socket pps stream 0660 system system
     writepid /dev/cpuset/system-background/tasks
+    task_profiles ProcessCapacityHigh HighPerformance
