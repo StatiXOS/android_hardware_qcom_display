@@ -91,7 +91,11 @@
 #include <utils/rect.h>
 #include <utils/utils.h>
 #include <utils/fence.h>
+#ifdef __has_include
+#if __has_include(<display/fod_defs.h>)
 #include <display/fod_defs.h>
+#endif
+#endif
 
 #include <sstream>
 #include <ctime>
