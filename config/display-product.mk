@@ -87,11 +87,9 @@ PRODUCT_COPY_FILES += hardware/qcom/display/config/smomo_setting.xml:$(TARGET_CO
 PRODUCT_PROPERTY_OVERRIDES += \
     persist.demo.hdmirotationlock=false \
     persist.sys.sf.color_saturation=1.0 \
-    persist.sys.sf.color_mode=9 \
     debug.sf.hw=0 \
     debug.egl.hw=0 \
     debug.sf.latch_unsignaled=1 \
-    debug.sf.high_fps_late_app_phase_offset_ns=1000000 \
     debug.mdpcomp.logs=0 \
     vendor.gralloc.disable_ubwc=0 \
     vendor.display.disable_scaler=0 \
@@ -102,14 +100,19 @@ PRODUCT_PROPERTY_OVERRIDES += \
     vendor.display.use_smooth_motion=1 \
     vendor.display.disable_stc_dimming=1 \
     vendor.display.enable_dpps_dynamic_fps=1 \
-    debug.sf.high_fps_late_sf_phase_offset_ns=-2000000 \
-    debug.sf.high_fps_early_phase_offset_ns=-4000000 \
-    debug.sf.high_fps_early_gl_phase_offset_ns=-2000000 \
     debug.sf.disable_client_composition_cache=1 \
     debug.sf.enable_gl_backpressure=1 \
     debug.sf.enable_advanced_sf_phase_offset=1 \
     debug.sf.predict_hwc_composition_strategy=0 \
     debug.sf.treat_170m_as_sRGB=1 \
+    debug.sf.high_fps_late_app_phase_offset_ns=1000000 \
+    debug.sf.high_fps_late_sf_phase_offset_ns=-2000000 \
+    debug.sf.high_fps_early_phase_offset_ns=-4000000 \
+    debug.sf.high_fps_early_gl_phase_offset_ns=-2000000 \
+    debug.sf.early_phase_offset_ns=1000000 \
+    debug.sf.early_gl_phase_offset_ns=1000000 \
+    debug.sf.early_app_phase_offset_ns=4000000 \
+    debug.sf.early_gl_app_phase_offset_ns=4000000 \
     vendor.display.enable_async_vds_creation=1 \
     vendor.display.enable_rounded_corner=1 \
     vendor.display.disable_3d_adaptive_tm=1 \
@@ -145,11 +148,13 @@ endif
 ifeq ($(TARGET_BOARD_PLATFORM),parrot)
 PRODUCT_PROPERTY_OVERRIDES += \
     debug.sf.enable_hwc_vds=false \
-    vendor.display.vds_allow_hwc=true
+    vendor.display.vds_allow_hwc=true \
+    persist.sys.sf.color_mode=7
 else
 PRODUCT_PROPERTY_OVERRIDES += \
     debug.sf.enable_hwc_vds=1 \
-    vendor.display.vds_allow_hwc=0
+    vendor.display.vds_allow_hwc=0 \
+    persist.sys.sf.color_mode=9
 endif
 
 #Set WCG properties
@@ -169,6 +174,13 @@ else
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.surface_flinger.has_wide_color_display=true
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.surface_flinger.has_HDR_display=true
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.surface_flinger.wcg_composition_dataspace=143261696
+endif
+
+#Background blur support
+ifeq ($(TARGET_BOARD_PLATFORM),parrot)
+PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.surface_flinger.supports_background_blur=0
+else
+PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.surface_flinger.supports_background_blur=1
 endif
 
 ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
