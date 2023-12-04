@@ -29,7 +29,6 @@ qtidisplay_cc_defaults {
             cflags: ["-DGRALLOC_HANDLE_HAS_NO_RESERVED_SIZE"],
         },
     },
-    clang: true,
 }
 
 cc_library_headers {
