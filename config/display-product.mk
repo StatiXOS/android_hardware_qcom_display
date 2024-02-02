@@ -33,6 +33,7 @@ PRODUCT_PACKAGES += \
     vendor.qti.hardware.display.demura-service.xml \
     vendor.qti.hardware.display.demura-service
 
+ifeq ($(TARGET_QRD_DEVICE), true)
 ifneq ($(TARGET_HAS_LOW_RAM),true)
 #Multi-stc libraries config xml file
 PRODUCT_COPY_FILES += hardware/qcom/display/config/snapdragon_color_libs_config.xml:$(TARGET_COPY_OUT_VENDOR)/etc/snapdragon_color_libs_config.xml
@@ -79,6 +80,7 @@ else
     #Backlight calibration xml file for r66451 amoled panels
     PRODUCT_COPY_FILES += hardware/qcom/display/config/backlight_calib_r66451_amoled_cmd_mode_dsi_visionox_panel_with_DSC.xml:$(TARGET_COPY_OUT_VENDOR)/etc/display/backlight_calib_r66451_amoled_cmd_mode_dsi_visionox_panel_with_DSC.xml
     PRODUCT_COPY_FILES += hardware/qcom/display/config/backlight_calib_r66451_amoled_cmd_mode_dsi_visionox_panel_with_DSC.xml:$(TARGET_COPY_OUT_VENDOR)/etc/display/backlight_calib_r66451_amoled_video_mode_dsi_visionox_panel_with_DSC.xml
+endif
 endif
 
 #Smomo config xml file
