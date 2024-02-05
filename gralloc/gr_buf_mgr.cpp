@@ -862,7 +862,7 @@ Error BufferManager::GetMetadataValue(private_handle_t *handle, int64_t metadata
     return Error::BAD_BUFFER;
   }
 
-  auto metadata = reinterpret_cast<MetaData_t *>(handle->base_metadata);
+  [[ maybe_unused ]] auto metadata = reinterpret_cast<MetaData_t *>(handle->base_metadata);
   return GetMetaDataValue(handle, metadatatype_value, param);
 }
 
@@ -879,10 +879,10 @@ Error BufferManager::GetMetadata(private_handle_t *handle, int64_t metadatatype_
     return Error::BAD_BUFFER;
   }
 
-  auto metadata = reinterpret_cast<MetaData_t *>(handle->base_metadata);
+  [[maybe_unused]] auto metadata = reinterpret_cast<MetaData_t *>(handle->base_metadata);
 
   void *metadata_ptr = nullptr;
-  auto result = GetMetaDataByReference(handle, metadatatype_value, &metadata_ptr);
+  [[maybe_unused]] auto result = GetMetaDataByReference(handle, metadatatype_value, &metadata_ptr);
   Error error = Error::NONE;
   switch (metadatatype_value) {
     case (int64_t)StandardMetadataType::BUFFER_ID:
