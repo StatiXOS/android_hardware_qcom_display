@@ -2,8 +2,6 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 include $(LOCAL_PATH)/../../../common.mk
 
-ifeq ($(use_hwc2),true)
-
 LOCAL_MODULE                  := hwcomposer.$(TARGET_BOARD_PLATFORM)
 LOCAL_LICENSE_KINDS           := SPDX-license-identifier-Apache-2.0 SPDX-license-identifier-BSD legacy_not_a_contribution
 LOCAL_LICENSE_CONDITIONS      := by_exception_only not_allowed notice
@@ -78,4 +76,3 @@ LOCAL_SRC_FILES               := hwc_session.cpp \
 #LOCAL_VINTF_FRAGMENTS         := android.hardware.graphics.composer-qti-display.xml
 
 include $(BUILD_SHARED_LIBRARY)
-endif
