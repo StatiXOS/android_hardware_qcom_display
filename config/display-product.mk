@@ -7,7 +7,7 @@ PRODUCT_PACKAGES += \
     vendor.qti.hardware.display.allocator-service \
     gralloc.$(TARGET_BOARD_PLATFORM) \
     lights.$(TARGET_BOARD_PLATFORM) \
-    hwcomposer.$(TARGET_BOARD_PLATFORM) \
+    hwcomposer.qcom \
     libqdMetaData.vendor \
     libdisplayconfig.vendor \
     vendor.display.config@1.0.vendor \
