@@ -7,8 +7,8 @@ PRODUCT_PACKAGES += \
     vendor.qti.hardware.display.allocator@1.0-service \
     android.hardware.light@2.0-impl \
     android.hardware.light@2.0-service \
-    gralloc.trinket \
-    lights.trinket \
+    gralloc.qcom \
+    lights.qcom \
     hwcomposer.qcom \
     libqdutils \
     libqdMetaData \
