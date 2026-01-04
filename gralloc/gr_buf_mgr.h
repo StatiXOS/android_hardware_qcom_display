@@ -15,6 +15,11 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * Changes from Qualcomm Technologies, Inc. are provided under the following license:
+ *
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #ifndef __GR_BUF_MGR_H__
@@ -82,6 +87,9 @@ class BufferManager {
     // and unused in the mapping process
     int ion_handle_main = -1;
     int ion_handle_meta = -1;
+
+    // Lock count to ensure nested lock/unlock situation are handled correctly
+    int lock_count = 0;
 
     Buffer() = delete;
     explicit Buffer(const private_handle_t *h, int ih_main = -1, int ih_meta = -1)

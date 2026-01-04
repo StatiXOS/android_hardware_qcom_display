@@ -25,6 +25,10 @@
 * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*
+* ​Changes from Qualcomm Technologies, Inc. are provided under the following license:
+* Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+* SPDX-License-Identifier: BSD-3-Clause-Clear
 */
 
 #include <cutils/properties.h>
@@ -229,7 +233,7 @@ int HWCDisplayPluggable::SetState(bool connected) {
 
   if (connected) {
     if (display_null_.IsActive()) {
-      error = core_intf_->CreateDisplay(type_, this, &display_intf_);
+      error = core_intf_->CreateDisplay(sdm_id_, this, &display_intf_);
       if (error != kErrorNone) {
         DLOGE("Display create failed. Error = %d display_type %d event_handler %p disp_intf %p",
               error, type_, this, &display_intf_);

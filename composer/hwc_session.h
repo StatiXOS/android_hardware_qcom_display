@@ -15,6 +15,10 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * ​Changes from Qualcomm Technologies, Inc. are provided under the following license:
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #ifndef __HWC_SESSION_H__
@@ -561,7 +565,8 @@ class HWCSession : hwc2_device_t, HWCUEventListener, public qClient::BnQClient,
   int bw_mode_release_fd_ = -1;
   qService::QService *qservice_ = nullptr;
   HWCSocketHandler socket_handler_;
-  bool hdmi_is_primary_ = false;
+  bool pluggable_is_primary_ = false;
+  bool null_display_active_ = false;
   bool is_composer_up_ = false;
   std::mutex mutex_lum_;
   int hpd_bpp_ = 0;

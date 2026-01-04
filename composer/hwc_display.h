@@ -17,6 +17,12 @@
  * limitations under the License.
  */
 
+/*
+ * ​Changes from Qualcomm Technologies, Inc. are provided under the following license:
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
+
 #ifndef __HWC_DISPLAY_H__
 #define __HWC_DISPLAY_H__
 
@@ -590,6 +596,7 @@ class HWCDisplay : public DisplayEventHandler {
   shared_ptr<Fence> client_acquire_fence_ = nullptr;
   int32_t client_dataspace_ = 0;
   hwc_region_t client_damage_region_ = {};
+  DisplayNullExternal display_null_;
 
  private:
   void DumpInputBuffers(void);
